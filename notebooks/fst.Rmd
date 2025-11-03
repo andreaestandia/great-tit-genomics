@@ -1,0 +1,117 @@
+---
+title: "fst.Rmd"
+author: "Andrea Estandia"
+date: "20/07/2024"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup}
+# Knitr settings: 
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+options(scipen = 999)
+```
+
+```{r}
+source("./src/great-tit-genomics_source.R")
+```
+
+```{r}
+mds <- data.table::fread(file.path(
+  data_path,
+  "dfs_derived",
+  "final_mds_df.csv"))
+
+top50 <- mds %>% top_n(MDS1, n=50)
+res_top50 <- mds %>% top_n(MDS2, n=50)
+```
+
+
+```{r}
+fst_mds <- data.table::fread(file.path(
+  data_path,
+  "plink",
+  "600K_processed",
+  "mds_50kb.windowed.weir.fst")) %>% 
+  filter(N_VARIANTS>0) %>% 
+  mutate(MEAN_FST=ifelse(MEAN_FST<0,0,MEAN_FST))%>% 
+  mutate(WEIGHTED_FST=ifelse(WEIGHTED_FST<0,0,WEIGHTED_FST)) %>% 
+  filter(CHROM!="36") %>% 
+  filter(CHROM!="30") 
+  
+fst_mds <- fst_mds %>%
+  mutate(p_value = pnorm(-abs(MEAN_FST), mean = mean(MEAN_FST), sd = sd(MEAN_FST)))
+
+# Apply Benjamini-Hochberg correction for False Discovery Rate
+fst_mds <- fst_mds %>%
+  mutate(FDR = p.adjust(p_value, method = "BH"))
+
+    
+fst_mds$n <- 1:nrow(fst_mds)
+
+axisdf <-
+  fst_mds %>% 
+  group_by(CHROM) %>% 
+  summarize(center = (max(n) + min(n)) / 2)
+
+fst_1 <- 
+  fst_mds %>%
+  ggplot(aes(x = n, y = WEIGHTED_FST, color = as.factor(CHROM))) +
+  geom_point() +
+  scale_x_continuous(
+    label = axisdf$CHROM,
+    breaks = axisdf$center,
+    expand = c(0.01, 0.01)
+  ) +
+  scale_color_manual(values = rep(c("#506485", "#8a94a6"), 26)) +
+  labs(x = "Chromosome") +
+  theme_classic(base_family = "roboto-condensed") +
+  theme(
+    legend.position = "none",
+    panel.border = element_blank(),
+    axis.ticks = element_blank()
+  ) + labs(x = "Chromosome", y = "FST")
+  
+fst_normal <- data.table::fread(file.path(
+  data_path,
+  "plink",
+  "600K_processed",
+  #"fst",
+  "residents_immigrants_FST_50kb.windowed.weir.fst")) %>% 
+  filter(N_VARIANTS>0) %>% 
+  mutate(MEAN_FST=ifelse(MEAN_FST<0,0,MEAN_FST))%>% 
+  mutate(WEIGHTED_FST=ifelse(WEIGHTED_FST<0,0,WEIGHTED_FST)) %>% 
+  filter(CHROM!="36") %>% 
+  filter(CHROM!="30") 
+  
+    
+fst_normal$n <- 1:nrow(fst_normal)
+
+axisdf <-
+  fst_normal %>% 
+  group_by(CHROM) %>% 
+  summarize(center = (max(n) + min(n)) / 2)
+
+fst_2 <- 
+  fst_normal %>%
+  ggplot(aes(x = n, y = WEIGHTED_FST, color = as.factor(CHROM))) +
+  geom_point() +
+  scale_x_continuous(
+    label = axisdf$CHROM,
+    breaks = axisdf$center,
+    expand = c(0.01, 0.01)
+  ) +
+  scale_color_manual(values = rep(c("#506485", "#8a94a6"), 26)) +
+  labs(x = "Chromosome") +
+  theme_classic(base_family = "roboto-condensed") +
+  theme(
+    legend.position = "none",
+    panel.border = element_blank(),
+    axis.ticks = element_blank()
+  ) + labs(x = "Chromosome", y = "FST")
+
+fst_1/fst_2 + plot_annotation(tag_levels = "A")
+
+```

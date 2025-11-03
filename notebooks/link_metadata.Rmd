@@ -1,0 +1,209 @@
+---
+title: "link_metadata.Rmd"
+author: "Andrea Estandia"
+date: "11/01/2024"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup}
+# Knitr settings: 
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+options(scipen = 999)
+```
+
+```{r}
+source("./src/great-tit-genomics_source.R")
+```
+
+
+Read both list of individuals from the 10K and 600K datasets 
+```{r}
+ind_10K <- read.csv(file.path(data_path,
+                             "plink",
+                             "10K_processed",
+                             "10K.fam"),
+                    header=F) 
+
+ind_600K <- read.csv(file.path(data_path,
+                             "plink",
+                             "600K_processed",
+                             "600K.fam"),
+                    header=F) 
+  
+```
+
+Detect immigrants vs residents
+```{r}
+process_data <- function(ind_data) {
+  total_data <- read.csv(file.path(data_path,
+                                    "wytham_ringing_breeding",
+                                    "ebmp_database_ringing_record_export_GT&BT_all.csv")) %>% 
+    filter(bto_species_code == "GRETI") %>% 
+    filter(bto_ring %in% ind_data$sample_name) %>% 
+    distinct(bto_ring, .keep_all = TRUE)
+
+  n_total_data <- dim(total_data)[1]
+
+  resident_data <- read.csv(file.path(data_path,
+                                       "wytham_ringing_breeding",
+                                       "ebmp_database_ringing_record_export_GT&BT_all.csv")) %>% 
+    filter(bto_species_code == "GRETI") %>% 
+    filter(age == 1) %>% # All age=1 are born in the population so residents
+    filter(bto_ring %in% ind_data$sample_name) %>% 
+    distinct(bto_ring, .keep_all = TRUE)
+
+  n_resident_data <- dim(resident_data)[1]
+
+  immigrants_data <- read.csv(file.path(data_path,
+                                          "wytham_ringing_breeding",
+                                          "ebmp_database_ringing_record_export_GT&BT_all.csv")) %>% 
+    filter(bto_species_code == "GRETI") %>% 
+    filter(bto_ring %in% ind_data$sample_name) %>% 
+    filter(bto_ring %!in% resident_data$bto_ring) %>% 
+    distinct(bto_ring, .keep_all = TRUE)
+
+  n_immigrants_data <- dim(immigrants_data)[1]
+
+  return(list(
+    total_data = total_data,
+    n_total_data = n_total_data,
+    resident_data = resident_data,
+    n_resident_data = n_resident_data,
+    immigrants_data = immigrants_data,
+    n_immigrants_data = n_immigrants_data
+  ))
+}
+
+# Usage for ind_600K
+result_600K <- process_data(ind_600K)
+(result_600K$n_resident_data)
+#617
+(result_600K$n_immigrants_data)
+#298
+
+# Usage for ind_10K
+result_10K <- process_data(ind_10K)
+(result_10K$n_resident_data)
+#1420
+(result_10K$n_immigrants_data)
+#1022
+
+result_10K
+
+result_common <- process_data(common_dataset)
+
+ind_w_bto_info <- result_common$total_data$bto_ring
+```
+
+```{r}
+res_10K <- (result_10K$resident_data) %>% 
+  mutate(imm_res="resident")
+
+imm_10K <- (result_10K$immigrants_data) %>% 
+  mutate(imm_res="immigrant")
+
+total_10K <- rbind(res_10K, imm_10K)
+
+write.csv(total_10K, 
+          file.path(data_path, 
+                    "dfs_derived",
+                    "immigrants_residents_10K.csv"),
+          row.names = F)
+
+res_600K <- (result_600K$resident_data) %>% 
+  mutate(imm_res="resident")
+
+imm_600K <- (result_600K$immigrants_data) %>% 
+  mutate(imm_res="immigrant")
+
+total_600K <- rbind(res_600K, imm_600K)
+
+write.csv(total_600K, 
+          file.path(data_path, 
+                    "dfs_derived",
+                    "immigrants_residents_600K.csv"),
+          row.names = F)
+```
+
+```{r}
+yr_600K_imm <-
+  result_600K$immigrants_data %>% 
+  ggplot(aes(x=yr))+
+  geom_histogram(fill="#e0bf51", colour=NA, alpha=0.5)+
+  geom_vline(xintercept= median(result_600K$immigrants_data$yr, na.rm=T),
+             linetype="dashed")+
+    labs(title = NULL, subtitle = NULL, x = "\nYear\n", y = "\nCount\n") +
+    theme_minimal() +
+    theme(
+      plot.background = element_rect(fill = "transparent", color = NA),
+      panel.grid = element_blank(),
+      panel.background = element_blank(),
+      axis.line = element_line(colour = "black"),
+      text = element_text(family = "Calibri"),
+      axis.title = element_text(family = "Calibri"),
+      legend.position = "bottom"
+    )+
+  labs(title="600K - Immigrants")
+
+yr_600K_res <-
+  result_600K$resident_data %>% 
+  ggplot(aes(x=yr))+
+  geom_histogram(fill="#82a854", colour=NA, alpha=0.5)+
+  geom_vline(xintercept= median(result_600K$resident_data$yr, na.rm=T),
+             linetype="dashed")+
+    labs(title = NULL, subtitle = NULL, x = "\nYear\n", y = "\nCount\n") +
+    theme_minimal() +
+    theme(
+      plot.background = element_rect(fill = "transparent", color = NA),
+      panel.grid = element_blank(),
+      panel.background = element_blank(),
+      axis.line = element_line(colour = "black"),
+      text = element_text(family = "Calibri"),
+      axis.title = element_text(family = "Calibri"),
+      legend.position = "bottom"
+    )+
+  labs(title="600K - Residents")
+
+yr_10K_res <-
+  result_10K$resident_data %>% 
+  ggplot(aes(x=yr))+
+  geom_histogram(fill="#60aebf", colour=NA, alpha=0.5)+
+  geom_vline(xintercept=median(result_10K$resident_data$yr,na.rm=T),
+             linetype="dashed")+
+    labs(title = NULL, subtitle = NULL, x = "\nYear\n", y = "\nCount\n") +
+    theme_minimal() +
+    theme(
+      plot.background = element_rect(fill = "transparent", color = NA),
+      panel.grid = element_blank(),
+      panel.background = element_blank(),
+      axis.line = element_line(colour = "black"),
+      text = element_text(family = "Calibri"),
+      axis.title = element_text(family = "Calibri"),
+      legend.position = "bottom"
+    )+
+  labs(title="10K - Residents")
+
+yr_10K_imm <-
+  result_10K$immigrants_data %>% 
+  ggplot(aes(x=yr))+
+  geom_histogram(fill="#a84a32", colour=NA, alpha=0.5)+
+  geom_vline(xintercept=median(result_10K$immigrants_data$yr,na.rm=T),
+             linetype="dashed")+
+    labs(title = NULL, subtitle = NULL, x = "\nYear\n", y = "\nCount\n") +
+    theme_minimal() +
+    theme(
+      plot.background = element_rect(fill = "transparent", color = NA),
+      panel.grid = element_blank(),
+      panel.background = element_blank(),
+      axis.line = element_line(colour = "black"),
+      text = element_text(family = "Calibri"),
+      axis.title = element_text(family = "Calibri"),
+      legend.position = "bottom"
+    )+
+  labs(title="10K - Immigrants")
+
+(yr_10K_res+yr_10K_imm)/(yr_600K_res+yr_600K_imm)+plot_annotation(tag_levels = "A")
+```

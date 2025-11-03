@@ -1,0 +1,163 @@
+---
+title: "brms_model_immigrants.Rmd"
+author: "Andrea Estandia"
+date: "23/07/2024"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup}
+# Knitr settings: 
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+options(scipen = 999)
+```
+
+```{r}
+source("./src/great-tit-genomics_source.R")
+```
+
+Load pairwise dataset
+```{r}
+pairwise <- data.table::fread(file.path(data_path, 
+                                        "dfs_derived",
+                                        "pairwise_complete.csv"))
+```
+
+Prepare data for modelling
+```{r}
+pairwise_subset1 <- pairwise %>% 
+  mutate(imm_res_id1_id2=paste0(imm_res_id1, "_",imm_res_id2)) %>% 
+  mutate(imm_res_id1_id2=ifelse(imm_res_id1_id2=="immigrant_resident", "resident_immigrant", imm_res_id1_id2)) %>% 
+  filter(diff_years==0) %>% 
+  drop_na(PI_HAT, breeding_distance, imm_res_id1_id2) %>% 
+  filter(breeding_distance!=0) %>% 
+  filter(imm_res_id1_id2=="immigrant_immigrant")
+
+pairwise_subset2 <- pairwise %>%
+  mutate(imm_res_id1_id2=paste0(imm_res_id1, "_",imm_res_id2)) %>% 
+  mutate(imm_res_id1_id2=ifelse(imm_res_id1_id2=="immigrant_resident", "resident_immigrant", imm_res_id1_id2)) %>% 
+  filter(diff_years==0) %>% 
+  drop_na(PI_HAT, breeding_distance, imm_res_id1_id2) %>% 
+  filter(breeding_distance!=0)%>% 
+  filter(imm_res_id1_id2=="resident_immigrant") 
+
+pairwise_subset3 <- pairwise %>% 
+  mutate(imm_res_id1_id2=paste0(imm_res_id1, "_",imm_res_id2)) %>% 
+  mutate(imm_res_id1_id2=ifelse(imm_res_id1_id2=="immigrant_resident", "resident_immigrant", imm_res_id1_id2)) %>% 
+  filter(diff_years==0) %>% 
+  drop_na(PI_HAT, breeding_distance, imm_res_id1_id2) %>% 
+  filter(breeding_distance!=0) %>% 
+  filter(imm_res_id1_id2=="resident_resident") 
+
+pairwise_subset <- rbind(pairwise_subset1,pairwise_subset2,pairwise_subset3)
+ 
+write.csv(pairwise_subset, "pairwise_subset.csv", row.names = F)
+
+pairwise <- data.table::fread(paste0(getwd(),"/pairwise_subset.csv"))
+```
+
+Run model
+```{r}
+m2 <- 
+  brm(
+  PI_HAT ~ s(breeding_distance, by=imm_res_id1_id2, k=5) + (1|mm(id1, id1)) + (1|yr_id1),
+  data = pairwise_subset,
+  backend = "rstan",
+  chains=4,
+  refresh = 500,
+  threads = threading(4)
+)
+
+m2 <- readRDS(file.path(reports_path,
+                  "m2.rds"))
+
+
+# Get conditional effects
+cond_effects <- conditional_effects(m2)
+
+# Set the color palette to match your plot (modify the colors as needed)
+color_palette <- c("#588262",  # Green tone   # Yellowish-orange
+                   "#A49570",
+                   "#c29007")  # Blended tone (adjust as needed)
+
+# Print the plot
+print(plot_conditional)
+
+m2_df <- as_tibble(cond_effects$`breeding_distance:imm_res_id1_id2`)
+```
+
+Plot condicional effects by immigration status
+```{r}
+# Define individual plots for each condition
+plot_1 <- m2_df %>%
+  filter(imm_res_id1_id2 == "immigrant_immigrant") %>%
+  ggplot(aes(x = breeding_distance, y = estimate__, col = imm_res_id1_id2)) +
+  geom_line(size = 1.2) +
+  geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = imm_res_id1_id2), color = NA, alpha = 0.3) +
+  scale_color_manual(values = color_palette[1]) +
+  scale_fill_manual(values = color_palette[1]) +
+  theme(
+    panel.background = element_rect(fill = "#f2f2f2", color = NA),  
+    panel.grid = element_blank(), 
+    axis.line = element_line(color = "black"),  
+    axis.ticks = element_line(color = "black"), 
+    text = element_text(family = "roboto_condensed"),
+    legend.position = "none"
+  )+
+  ylim(c(0.005,0.03))+
+  labs(title = "Immigrant /\n Immigrant",
+    x = "\nBreeding Distance (m)\n",  
+    y = "\n"
+  )
+
+plot_2 <- m2_df %>%
+  filter(imm_res_id1_id2 == "resident_immigrant") %>%
+  ggplot(aes(x = breeding_distance, y = estimate__, col = imm_res_id1_id2)) +
+  geom_line(size = 1.2) +
+  geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = imm_res_id1_id2), color = NA, alpha = 0.3) +
+  scale_color_manual(values = color_palette[2]) +
+  scale_fill_manual(values = color_palette[2]) +
+  theme(
+    panel.background = element_rect(fill = "#f2f2f2", color = NA),  
+    panel.grid = element_blank(), 
+    axis.line = element_line(color = "black"),  
+    axis.ticks = element_line(color = "black"), 
+    text = element_text(family = "roboto_condensed"),
+    legend.position = "none"
+  )+
+  ylim(c(0.005,0.03))+
+  labs(title = "Immigrant /\n Locally-born",
+    x = "\nBreeding Distance (m)\n",  
+    y = "\n"
+  )
+
+plot_3 <- m2_df %>%
+  filter(imm_res_id1_id2 == "resident_resident") %>%
+  ggplot(aes(x = breeding_distance, y = estimate__, col = imm_res_id1_id2)) +
+  geom_line(size = 1.2) +
+  geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = imm_res_id1_id2), color = NA, alpha = 0.3) +
+  scale_color_manual(values = color_palette[3]) +
+  scale_fill_manual(values = color_palette[3]) +
+  theme(
+    panel.background = element_rect(fill = "#f2f2f2", color = NA),  
+    panel.grid = element_blank(), 
+    axis.line = element_line(color = "black"),  
+    axis.ticks = element_line(color = "black"), 
+    text = element_text(family = "roboto_condensed"),
+    legend.position = "none"
+  )+
+  ylim(c(0.005,0.03))+
+  labs(title = "Locally-born /\n Locally-born",
+    x = "\nBreeding Distance (m)\n",  
+    y = "Predicted IBD\n"
+  )
+
+# Combine the plots side by side using patchwork
+combined_plot <- plot_3 + plot_2 + plot_1 + plot_annotation(tag_levels="A")+
+  plot_layout(guides="collect")
+
+# Print the combined plot
+combined_plot
+```
