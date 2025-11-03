@@ -1,6 +1,6 @@
 # Great tit genomics - Wytham Woods
 
-This repository contains the computational pipeline used in **Estandia et al. (2025)** to explore dispersal and immigration in Wytham Woods, UK.  
+This repository contains the computational pipeline used in **Estandia et al. (2025)** to explore dispersal and immigration in great tits from Wytham Woods, UK.  
 
 ---
 
@@ -19,4 +19,4 @@ The SNP datasets were published by Kim et al., 2018 Mol. Ecol. Resour. and van B
 
 ## Contact
 
-andrea.estandia@biology.ox.ac.uk & rona.learmonth@biology.ox.ac.uk
+andrea.estandia@biology.ox.ac.uk

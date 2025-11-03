@@ -1,0 +1,329 @@
+---
+title: "ibd"
+author: "Andrea Estandia"
+date: "11/01/2024"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+  
+```{r setup}
+# Knitr settings: 
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+options(scipen = 999)
+```
+
+```{r}
+source("./src/great-tit-genomics_source.R")
+```
+
+```{r}
+pairwise <- data.table::fread(file.path(data_path, 
+                                        "dfs_derived",
+                                        "pairwise_complete.csv"))
+df <- pairwise %>% 
+  mutate(kinship_degree = ifelse(
+    kinship > 0.354,
+    "monozygotic_twins",
+    ifelse(
+      kinship > 0.177,
+      "first_degree",
+      ifelse(
+        kinship > 0.0885,
+        "second_degree",
+        "unrelated")
+      )
+    
+  )) 
+
+# Function to calculate summary statistics
+calculate_summary_stats <- function(df) {
+  df %>%
+    group_by(breeding_distance_bin) %>%
+    summarize(
+      mean_PI_HAT = mean(PI_HAT, na.rm = TRUE),
+      lower_CI = mean(PI_HAT, na.rm = TRUE) - qt(0.975, df = n() - 1) * sd(PI_HAT, na.rm = TRUE) / sqrt(n()),
+      upper_CI = mean(PI_HAT, na.rm = TRUE) + qt(0.975, df = n() - 1) * sd(PI_HAT, na.rm = TRUE) / sqrt(n())
+    )
+}
+
+# 1. All RT levels included
+pairwise_bins_all_RT <- pairwise %>%
+  mutate(breeding_distance_bin = cut(breeding_distance, breaks = seq(0, max(breeding_distance, na.rm = TRUE), by = 500), include.lowest = TRUE)) %>% 
+  # Assuming RT is a column in your dataframe
+  filter(diff_years == 0)
+
+summary_stats_all_RT <- calculate_summary_stats(pairwise_bins_all_RT) %>%
+  mutate(scenario = "All RT levels")
+
+# 2. Exclude First Stage (FS) and Outlier (OT)
+pairwise_bins_no_FS_OT <- pairwise_bins_all_RT %>%
+  filter(RT != "FS" & RT != "PO")
+
+summary_stats_no_FS_OT <- calculate_summary_stats(pairwise_bins_no_FS_OT) %>%
+  mutate(scenario = "All except FS and PO");
+
+# 3. Exclude High Stage (HS)
+pairwise_bins_no_HS <- pairwise_bins_no_FS_OT %>%
+  filter(RT != "HS")
+
+summary_stats_no_HS <- calculate_summary_stats(pairwise_bins_no_HS) %>%
+  mutate(scenario = "All except FS, PO, and HS")
+
+# Combine all summary statistics
+combined_summary_stats_RT <- bind_rows(
+  summary_stats_all_RT,
+  summary_stats_no_FS_OT,
+  summary_stats_no_HS
+)
+
+combined_summary_stats_RT$scenario <- factor(combined_summary_stats_RT$scenario, 
+                                          levels = c("All RT levels", 
+                                                     "All except FS and PO", 
+                                                     "All except FS, PO, and HS"))
+
+# Define x breaks and labels
+x_breaks <- seq(500, 3500, by = 500)
+x_labels <- c(as.character(x_breaks), "NA")
+
+# Add x_labels to the combined DataFrame
+combined_summary_stats_RT <- combined_summary_stats_RT %>%
+  cbind(x_labels = x_labels) %>%
+  mutate(x_labels = as.numeric(x_labels)) %>%
+  filter(!is.na(x_labels))
+
+# Define the manual colors
+manual_colors <- c("#755c53", "#b57e38", "#d9b259")
+
+# Plotting all scenarios
+plot_RT <- ggplot(combined_summary_stats_RT, aes(x = x_labels, y = mean_PI_HAT, color = scenario)) +
+  geom_point(size=2.5) +
+  geom_errorbar(aes(ymin = lower_CI, ymax = upper_CI), width = 0.2) +
+  labs(y = "\nIdentity by Descent\n", 
+       x = "\nDistance (m)", 
+       subtitle = "Isolation by distance (Pedigree)") +
+  theme_minimal() +
+  theme(
+    panel.background = element_rect(fill = "#f2f2f2", color = NA),  
+    panel.grid = element_blank(), 
+    axis.line = element_line(color = "black"),  
+    axis.ticks = element_line(color = "black"), 
+    text = element_text(family = "roboto_condensed")
+  )+
+  scale_color_manual(values = manual_colors) +
+  guides(color = guide_legend(title = "Relatedness", size=12))+
+  scale_x_continuous(breaks = seq(500, 3500, by = 500), 
+                     labels = as.character(seq(500, 3500, by = 500)))
+
+# Print the plot
+print(plot_RT)
+
+```
+
+```{r}
+# Function to calculate summary statistics
+calculate_summary_stats <- function(df) {
+  df %>%
+    group_by(breeding_distance_bin) %>%
+    summarize(
+      mean_PI_HAT = mean(PI_HAT, na.rm = TRUE),
+      lower_CI = mean(PI_HAT, na.rm = TRUE) - qt(0.975, df = n() - 1) * sd(PI_HAT, na.rm = TRUE) / sqrt(n()),
+      upper_CI = mean(PI_HAT, na.rm = TRUE) + qt(0.975, df = n() - 1) * sd(PI_HAT, na.rm = TRUE) / sqrt(n())
+    )
+}
+
+# 1. All kinship degrees included
+pairwise_bins_all <- pairwise %>%
+  mutate(breeding_distance_bin = cut(breeding_distance, breaks = seq(0, max(breeding_distance, na.rm = TRUE), by = 500), include.lowest = TRUE)) %>% 
+  mutate(kinship_degree = ifelse(
+    kinship > 0.354, "monozygotic_twins",
+    ifelse(
+      kinship > 0.177, "first_degree",
+      ifelse(
+        kinship > 0.0885, "second_degree",
+        ifelse(kinship > 0.044, "third_degree", "unrelated")
+      )
+    )
+  )) %>%
+  filter(diff_years == 0)
+
+summary_stats_all <- calculate_summary_stats(pairwise_bins_all) %>%
+  mutate(scenario = "All")
+
+# 2. Exclude first-degree relatives
+pairwise_bins_no_first <- pairwise_bins_all %>%
+  filter(kinship_degree != "first_degree")
+
+summary_stats_no_first <- calculate_summary_stats(pairwise_bins_no_first) %>%
+  mutate(scenario = "All except first degree")
+
+# 3. Exclude first and second-degree relatives
+pairwise_bins_no_second <- pairwise_bins_no_first %>%
+  filter(kinship_degree != "second_degree")
+
+summary_stats_no_second <- calculate_summary_stats(pairwise_bins_no_second) %>%
+  mutate(scenario = "All except first and second degree")
+
+# 4. Exclude first, second, and third-degree relatives (leaving only unrelated)
+pairwise_bins_no_third <- pairwise_bins_no_second %>%
+  filter(kinship_degree != "third_degree")
+
+summary_stats_no_third <- calculate_summary_stats(pairwise_bins_no_third) %>%
+  mutate(scenario = "All except first, second and third degree")
+
+# Combine all summary statistics
+combined_summary_stats <- bind_rows(
+  summary_stats_all,
+  summary_stats_no_first,
+  summary_stats_no_second,
+  summary_stats_no_third
+)
+
+combined_summary_stats$scenario <- factor(combined_summary_stats$scenario, 
+                                          levels = c("All", 
+                                                     "All except first degree", 
+                                                     "All except first and second degree", 
+                                                     "All except first, second and third degree"))
+
+# Define x breaks and labels
+x_breaks <- seq(500, 3500, by = 500)
+x_labels <- c(as.character(x_breaks), "NA")
+
+# Add x_labels to the combined DataFrame
+combined_summary_stats <- combined_summary_stats %>%
+  cbind(x_labels = x_labels) %>%
+  mutate(x_labels = as.numeric(x_labels)) %>%
+  filter(!is.na(x_labels))
+
+# Define the manual colors
+#manual_colors <- c("#032b43", "#065a82", "#4d8cbd", "#81c3d7")
+manual_colors <- c("#755c53", "#b57e38", "#d9b259", "#d4b596")
+
+
+# Plotting all scenarios
+plot3 <- ggplot(combined_summary_stats, aes(x = x_labels, y = mean_PI_HAT, color = scenario)) +
+  geom_point(size=2.5) +
+  geom_errorbar(aes(ymin = lower_CI, ymax = upper_CI), width = 0.2) +
+  labs(y = "\nIdentity by Descent\n", 
+       x = "\nDistance (m)", 
+       subtitle = "Isolation by distance (Genomics)") +
+  theme_minimal() +
+  theme(
+    panel.background = element_rect(fill = "#f2f2f2", color = NA),  
+    panel.grid = element_blank(), 
+    axis.line = element_line(color = "black"),  
+    axis.ticks = element_line(color = "black"), 
+    text = element_text(family = "roboto_condensed")
+  )+
+  scale_color_manual(values = manual_colors) +
+  guides(color = guide_legend(title = "Kinship degrees", size=12))+
+  scale_x_continuous(breaks = c(500, 1000, 1500, 2000, 2500, 3000, 3500), 
+                     labels = c("500", 
+                                "1000",
+                                "1500",
+                                "2000",
+                                "2500",
+                                "3000",
+                                "3500"))
+
+plot_RT+plot3
+
+```
+
+```{r}
+ibs <- data.table::fread(file.path(data_path,
+                "plink", "10K_processed", 
+                "10K_pruned_clean.genome")) %>% 
+  filter(RT=="PO" | RT =="FS")
+
+ibs_PO <- ibs %>% filter(Z0<0.044)
+ibs_FS <- ibs %>% filter(Z0>0.044)
+
+unique(ibs_PO$RT)
+unique(ibs_FS$RT)
+
+first_degree <- df %>% 
+  filter(kinship_degree=="first_degree")
+
+first_degree_PO <- first_degree %>%
+  filter(Z0 < 0.044) %>%
+  filter(!is.na(imm_res_id1) & !is.na(imm_res_id2)) %>%
+  rowwise() %>%
+  mutate(imm_res_id1_id2 = paste(sort(c(imm_res_id1, imm_res_id2)), collapse = "_")) %>%
+  ungroup() %>%
+  group_by(imm_res_id1_id2) %>%
+  summarise(n = n())
+
+first_degree_FS <- first_degree %>%
+  filter(Z0 > 0.044) %>%
+  filter(!is.na(imm_res_id1) & !is.na(imm_res_id2)) %>%
+  rowwise() %>%
+  mutate(imm_res_id1_id2 = paste(sort(c(imm_res_id1, imm_res_id2)), collapse = "_")) %>%
+  ungroup() %>%
+  group_by(imm_res_id1_id2) %>%
+  summarise(n = n())
+
+first_degree_FS <- first_degree_FS %>%
+  mutate(RT = "FS")
+
+first_degree_PO <- first_degree_PO %>%
+  mutate(RT = "PO")
+
+first_degree_all <- bind_rows(first_degree_FS, first_degree_PO) %>%
+  group_by(imm_res_id1_id2) %>%
+  mutate(total = sum(n),
+         proportion = n / total) %>%
+  ungroup()
+
+first_degree_all %>% 
+  ggplot(aes(x = RT, y = proportion, fill = imm_res_id1_id2)) +
+  geom_bar(stat = "identity") +
+  scale_y_continuous(limits = c(0, 1)) +
+  scale_x_discrete(labels = c("FS" = "Full siblings", "PO" = "Parent-Offspring")) +
+  scale_fill_manual(
+    values = c("#cc7464", "#e8ba3c", "#739abf"),
+    labels = c("Immigrant / Immigrant", "Immigrant / Locally-born", "Locally-born / Locally-born"),
+    name = NULL
+  ) +
+  labs(x = NULL, y = "Proportion\n") +
+  theme_minimal() +
+  theme(
+    panel.background = element_rect(color = NA),  
+    panel.grid = element_blank(),  
+    text = element_text(family = "roboto_condensed", size = 14),
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 14),
+    axis.text.y = element_text(size = 14),
+    axis.title.y = element_text(size = 14),
+    legend.text = element_text(size = 14)
+  )
+
+first_degree_all %>% 
+  ggplot(aes(x = imm_res_id1_id2, y = proportion, fill = RT)) +
+  geom_bar(stat = "identity") +
+  scale_y_continuous(limits = c(0, 1)) +
+  scale_x_discrete(labels = c(
+    "immigrant_immigrant" = "Immigrant / Immigrant", 
+    "immigrant_resident" = "Immigrant / Locally-born", 
+    "resident_resident" = "Locally-born / Locally-born"
+  )) +
+  scale_fill_manual(
+    values = c("FS" = "#c9b657", "PO" = "#739abf"),
+    labels = c("Full siblings", "Parent-Offspring"),
+    name = NULL
+  ) +
+  labs(x = NULL, y = "Proportion\n") +
+  theme_minimal() +
+  theme(
+    panel.background = element_rect(color = NA),  
+    panel.grid = element_blank(),  
+    text = element_text(family = "roboto_condensed", size = 14),
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 14),
+    axis.text.y = element_text(size = 14),
+    axis.title.y = element_text(size = 14),
+    legend.text = element_text(size = 14)
+  )
+
+  
+`````````
+
