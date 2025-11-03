@@ -1,0 +1,98 @@
+---
+title: "roh.Rmd"
+author: "Andrea Estandia"
+date: "19/02/2024"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup}
+# Knitr settings: 
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+options(scipen = 999)
+```
+
+```{r}
+source("./src/great-tit-genomics_source.R")
+```
+
+```{r}
+roh <- 
+  read.table(file.path(data_path,
+                             "plink",
+                             "600K_processed",
+                             "600K_pruned_clean.hom.indiv"),
+             header=T) %>% 
+  rename(bto_ring=IID)
+
+immigrant_resident <- read.csv(file.path(data_path,
+                                          "dfs_derived",
+                                          "immigrants_residents_600K.csv"))
+
+
+roh1 <- roh %>% left_join(immigrant_resident, by="bto_ring")
+
+a <- roh1 %>%
+  filter(imm_res != "NA") %>%
+  ggplot(aes(x = log(KBAVG), colour = imm_res)) +
+  geom_density(size = 1) +  # line-only density
+  scale_colour_manual(
+    values = c("resident" = "#c29006", "immigrant" = "#588262"),
+    labels = c("immigrant" = "Immigrant", "resident" = "Locally-born")
+  ) +
+  theme(
+    panel.background = element_rect(fill = "#f2f2f2", color = NA),
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black"),
+    axis.ticks = element_line(color = "black"),
+    text = element_text(family = "roboto_condensed"),
+    legend.position = c(0.98, 0.98),
+    legend.justification = c("right", "top"),
+    legend.background = element_blank(),  # remove legend box outline
+    legend.key = element_blank(),          # remove background behind symbols
+    legend.title = element_blank()
+  ) +
+  guides(
+    colour = guide_legend(
+      override.aes = list(
+        shape = 22,                      # filled square
+        size = 5,
+        fill = c("#588262", "#c29006"),  # same as line colors
+        color = NA                       # no outline on the squares
+      )
+    )
+  ) +
+labs( x = "\nIndividual average length of \nRuns of Homozygosity (log10)\n", y = "Density\n" )
+
+
+b <- roh1 %>%
+  filter(imm_res != "NA") %>%
+  ggplot(aes(x = KBAVG, colour = imm_res)) +
+  geom_density() +  # Keep the density plot
+  scale_colour_manual(
+    values = c("resident" = "#c29006", "immigrant" = "#588262"),  # Custom colors for resident and immigrant
+    labels = c("immigrant" = "Immigrant", "resident" = "Locally-born")  # Custom labels
+  ) +
+  theme(
+    panel.background = element_rect(fill = "#f2f2f2", color = NA),  # Background color
+    panel.grid = element_blank(),  # Remove gridlines
+    axis.line = element_line(color = "black"),  # Black axis lines
+    axis.ticks = element_line(color = "black"),  # Black axis ticks
+    text = element_text(family = "roboto_condensed"),  # Font family
+    legend.title = element_blank(),  # No legend title
+    legend.position = "none"
+  ) +
+  labs(
+    x = "\nNumber of Runs of Homozygosity\n",  # Adjust x-label format
+    y = "Density\n"  # Adjust y-label format
+  )
+
+combined_plot/(b+a)+plot_annotation(tag_levels="A")
+
+ggsave(file.path(figures_path, "roh_imm_res.pdf"),
+       width = 7,
+       height = 7,
+       dpi = 300)  
+```
