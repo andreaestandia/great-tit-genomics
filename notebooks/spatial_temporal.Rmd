@@ -68,12 +68,6 @@ map <- ggplot() +
     geom_point(data = closest_neighbors_mp, 
              aes(x = x, y = y),
              color = "#6BA48B") +
-  # geom_point(data = closest_neighbors_c, 
-  #            aes(x = x, y = y),
-  #            color = "#b38c6f") +
-  # geom_point(data = closest_neighbors_o, 
-  #            aes(x = x, y = y),
-  #            color = "#6BA48B") +
     labs(title = NULL, subtitle = NULL, x = "", y = "") +
     theme_minimal() +
     theme( 
@@ -87,7 +81,6 @@ map <- ggplot() +
        x = "",
        y = "")
 
-library(sf)
 
 # Create spatial points
 gw_sf <- st_as_sf(closest_neighbors_great_wood, coords = c("x", "y"), crs = 27700)
@@ -116,39 +109,11 @@ subset_gw <-
   pairwise %>% 
   filter(breeding_nb_id1 %in% closest_neighbors_great_wood$nb & breeding_nb_id2 %in% closest_neighbors_great_wood$nb)
 
-subset_c <-
-  pairwise %>% 
-  filter(breeding_nb_id1 %in% closest_neighbors_c$nb & breeding_nb_id2 %in% closest_neighbors_c$nb)
-
-subset_o <-
-  pairwise %>% 
-  filter(breeding_nb_id1 %in% closest_neighbors_o$nb & breeding_nb_id2 %in% closest_neighbors_o$nb)
-
-subset_cp <-
-  pairwise %>% 
-  filter(breeding_nb_id1 %in% closest_neighbors_cp$nb & breeding_nb_id2 %in% closest_neighbors_cp$nb)
-
 close_far_subsets <- 
   pairwise %>% 
   filter(breeding_distance>0) %>% 
   filter(breeding_nb_id1 %in% closest_neighbors_mp$nb | breeding_nb_id1 %in% closest_neighbors_great_wood$nb) %>% 
   filter(breeding_nb_id2 %in% closest_neighbors_mp$nb | breeding_nb_id2 %in% closest_neighbors_great_wood$nb) %>% 
-  mutate(close_far=ifelse(breeding_distance<1000, "close", "far")) %>% 
-  filter(diff_years==0)
-
-close_far_subsets <- 
-  pairwise %>% 
-  filter(breeding_distance>0) %>% 
-  filter(breeding_nb_id1 %in% closest_neighbors_c$nb | breeding_nb_id1 %in% closest_neighbors_mp$nb) %>% 
-  filter(breeding_nb_id2 %in% closest_neighbors_c$nb | breeding_nb_id2 %in% closest_neighbors_mp$nb) %>% 
-  mutate(close_far=ifelse(breeding_distance<1000, "close", "far")) %>% 
-  filter(diff_years==0)
-
-close_far_subsets <- 
-  pairwise %>% 
-  filter(breeding_distance>0) %>% 
-  filter(breeding_nb_id1 %in% closest_neighbors_c$nb | breeding_nb_id1 %in% closest_neighbors_great_wood$nb) %>% 
-  filter(breeding_nb_id2 %in% closest_neighbors_c$nb | breeding_nb_id2 %in% closest_neighbors_great_wood$nb) %>% 
   mutate(close_far=ifelse(breeding_distance<1000, "close", "far")) %>% 
   filter(diff_years==0)
 
@@ -204,14 +169,6 @@ close_far_subsets <- read.csv(file.path(data_path,
                          "dfs_derived",
                          "close_far_subsets.csv"))
 
-subset_c <- read.csv(file.path(data_path,
-                         "dfs_derived",
-                         "subset_c.csv"))
-
-subset_o <- read.csv(file.path(data_path,
-                         "dfs_derived",
-                         "subset_o.csv"))
-
 subset_mp <- read.csv(file.path(data_path,
                          "dfs_derived",
                          "subset_mp.csv"))
@@ -219,70 +176,6 @@ subset_mp <- read.csv(file.path(data_path,
 subset_gw <- read.csv(file.path(data_path,
                          "dfs_derived",
                          "subset_gw.csv"))
-
-o_plot <-
-  subset_o %>%
-  filter(diff_years <9) %>% 
-  ggplot(aes(x = diff_years, y = PI_HAT)) +
-  stat_summary(
-    fun.data = mean_cl_normal,
-    geom = "errorbar",
-    width = 0.2,
-    color = "#6BA48B"
-  ) +
-  stat_summary(
-    fun.y = mean,
-    geom = "point",
-    shape = 18,
-    size = 4,
-    color = "#6BA48B"
-  ) +
-  geom_hline(yintercept=summary_close_far_subsets$mean[2], col="darkgrey")+
-  geom_hline(yintercept=summary_close_far_subsets$ci_lower[2], linetype="dashed", col="darkgrey")+
-  geom_hline(yintercept=summary_close_far_subsets$ci_upper[2], linetype="dashed", col="darkgrey")+
-  coord_cartesian(ylim = c(0, 0.04))+
-  labs(y = "\nIdentity by Descent\n", x="\nYears between the pairs") +
-  theme_minimal() +
-  theme(
-    panel.background = element_rect(fill = "#f2f2f2", color = NA),  
-    panel.grid = element_blank(), 
-    axis.line = element_line(color = "black"),  
-    axis.ticks = element_line(color = "black"), 
-    text = element_text(family = "roboto_condensed"),
-    legend.position = "none"
-  )
-
-c_plot <-
-  subset_c %>%
-  filter(diff_years <9) %>% 
-  ggplot(aes(x = diff_years, y = PI_HAT)) +
-  stat_summary(
-    fun.data = mean_cl_normal,
-    geom = "errorbar",
-    width = 0.2,
-    color = "#b38c6f"
-  ) +
-  stat_summary(
-    fun.y = mean,
-    geom = "point",
-    shape = 18,
-    size = 4,
-    color = "#b38c6f"
-  ) +
-  geom_hline(yintercept=summary_close_far_subsets$mean[2], col="darkgrey")+
-  geom_hline(yintercept=summary_close_far_subsets$ci_lower[2], linetype="dashed", col="darkgrey")+
-  geom_hline(yintercept=summary_close_far_subsets$ci_upper[2], linetype="dashed", col="darkgrey")+
-  coord_cartesian(ylim = c(0, 0.04))+
-  labs(y = "\nIdentity by Descent\n", x="\nYears between the pairs") +
-  theme_minimal() +
-  theme(
-    panel.background = element_rect(fill = "#f2f2f2", color = NA),  
-    panel.grid = element_blank(), 
-    axis.line = element_line(color = "black"),  
-    axis.ticks = element_line(color = "black"), 
-    text = element_text(family = "roboto_condensed"),
-    legend.position = "none"
-  )
 
 gw_plot <-
   subset_gw %>%
@@ -348,5 +241,5 @@ mp_plot <-
     legend.position = "none"
   )
 
-map/(gw_plot+mp_plot)#/(o_plot+c_plot)
+map/(gw_plot+mp_plot)
 ```
