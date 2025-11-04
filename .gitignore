@@ -1,0 +1,22 @@
+# Ignore everything in data and reports
+/data/*
+/reports/*
+
+# But keep these specific files
+!data/dfs_derived/final_mds_df.csv
+!data/dfs_derived/close_far_subsets.csv
+!data/dfs_derived/immigrants_residents_10K.csv
+!data/dfs_derived/immigrants_residents_600K.csv
+!data/dfs_derived/subset_gw.csv
+!data/dfs_derived/subset_mp.csv
+!data/plink/10K_processed/10K_pca.eigenvec
+
+# Keep necessary parent folders (so Git can find those files)
+!data/
+!data/dfs_derived/
+!data/plink/
+!data/plink/10K_processed/
+
+# Explicitly ignore the large file
+data/dfs_derived/pairwise_complete.csv
+
